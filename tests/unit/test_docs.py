@@ -425,8 +425,12 @@ def test_publish_workflow_generates_release_body_from_template() -> None:
     workflow = _read(PUBLISH_WORKFLOW)
     assert "tags: ['v*', '[0-9]*']" in workflow, "tag trigger must accept plain SemVer tags"
     assert re.search(r"^permissions:\s*\{\}", workflow, re.MULTILINE) is not None
-    assert "id-token: write" in workflow, "OIDC trusted publishing must be retained"
-    assert "NPM_TOKEN" not in workflow, "no long-lived npm token may be introduced"
+    assert "id-token: write" not in workflow, "OIDC trusted publishing must stay removed"
+    assert "NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}" in workflow, (
+        "the publish step must authenticate with the NPM_TOKEN repository secret"
+    )
+    assert "npm install --global" not in workflow, "global npm installs must stay removed"
+    assert "npm publish --access public" in workflow, "public npm publish must be retained"
     release = workflow.split("  create-github-release:", 1)[1].split("\n  on-failure:", 1)[0]
     assert "if: github.event_name == 'push'" in release
     assert "contents: write" in release, "creating a release needs contents: write"
