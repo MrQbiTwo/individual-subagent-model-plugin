@@ -1,0 +1,10 @@
+# zizmor configuration. All other audits (including unpinned-uses,
+# template-injection and artipacked) are enforced with no exceptions.
+# The ignored findings are unavoidable by design: the compatibility suite must
+# install the OpenCode CLI at a dispatch-selected version, and npm publishing
+# requires npm >= 11.5.1, neither of which can come from a repository lockfile.
+rules:
+  adhoc-packages:
+    ignore:
+      - opencode-compat.yml
+      - publish.yml

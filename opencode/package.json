@@ -1,0 +1,39 @@
+{
+  "name": "opencode-individual-subagent-model-plugin",
+  "version": "1.0.0",
+  "description": "Lets the primary model select a permitted AI model for each OpenCode subagent.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "exports": {
+    ".": "./dist/index.js",
+    "./rpc": "./dist/rpc.js"
+  },
+  "imports": {
+    "#universal": "./dist/universal/index.js",
+    "#universal/*": "./dist/universal/*.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MrQbiTwo/individual-subagent-model-plugin.git"
+  },
+  "dependencies": {
+    "@opencode/plugin": "^2.3.2",
+    "@opencode/sdk": "^2.3.2",
+    "@opencode/client": "^2.3.2"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "@types/node": "^24.0.0"
+  },
+  "scripts": {
+    "build": "tsc -p ../universal/tsconfig.json && tsc -p tsconfig.json",
+    "typecheck": "tsc -p ../universal/tsconfig.json && tsc -p tsconfig.json --noEmit",
+    "probe": "node tools/universal/core_probe.mjs"
+  }
+}

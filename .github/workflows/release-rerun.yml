@@ -1,0 +1,44 @@
+# A maintainer closes the ci-release tracker to request another build attempt.
+# GITHUB_TOKEN cannot start a normal workflow from an issue event, but it CAN
+# dispatch workflow_dispatch, so we re-dispatch publish.yml on the same tag.
+# Each close is one explicit human action, so the retry cycle stays bounded.
+name: Re-run release when tracker issue is closed
+
+on:
+  issues:
+    types: [closed]
+
+concurrency:
+  group: release-rerun-${{ github.workflow }}
+
+permissions: {}
+
+jobs:
+  rerun:
+    name: redispatch-publish
+    if: >-
+      contains(github.event.issue.labels.*.name, 'ci-release') &&
+      github.event.issue.state == 'closed'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - name: Re-dispatch publish.yml on the recorded release tag
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TITLE: ${{ github.event.issue.title }}
+        run: |
+          set -euo pipefail
+          tag="$(printf '%s' "$TITLE" | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -n1 || true)"
+          if [ -z "$tag" ]; then
+            tag="$(gh variable get LAST_RELEASE_TAG 2>/dev/null || true)"
+          fi
+          # "none" is the initial value of the LAST_RELEASE_TAG Actions variable.
+          if [ -z "$tag" ] || [ "$tag" = "none" ] || [ "$tag" = "0.0.0" ]; then
+            echo "No release tag found in the issue title or Actions variables." >&2
+            exit 1
+          fi
+          echo "Re-running publish.yml for $tag"
+          gh workflow run publish.yml --ref main -f tag="$tag"
