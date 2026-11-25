@@ -29,7 +29,7 @@
   },
   "devDependencies": {
     "typescript": "^7.0.2",
-    "@types/node": "^24.0.0"
+    "@types/node": "^26.6.6"
   },
   "scripts": {
     "build": "tsc -p ../universal/tsconfig.json && tsc -p tsconfig.json",
