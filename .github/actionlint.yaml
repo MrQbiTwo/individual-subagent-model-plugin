@@ -1,0 +1,5 @@
+# actionlint's built-in runner list predates the Windows 11 ARM64 image.
+# The label below is a GitHub-hosted GA runner confirmed in actions/runner-images.
+self-hosted-runner:
+  labels:
+    - windows-11-arm

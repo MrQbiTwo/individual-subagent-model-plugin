@@ -1,0 +1,106 @@
+# Cross-platform tests against a specific OpenCode release. Dispatched by
+# watch-opencode-release.yml; a successful run changes nothing, a failing run
+# updates one idempotent tracker issue.
+name: OpenCode compatibility tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      opencode_version:
+        description: 'OpenCode release tag to test against, e.g. v2.3.2'
+        required: true
+        type: string
+
+concurrency:
+  group: compat-${{ github.workflow }}-${{ inputs.opencode_version }}
+
+permissions: {}
+
+jobs:
+  test:
+    name: compat (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - ubuntu-24.04-arm
+          - windows-latest
+          - macos-latest
+          - windows-11-arm
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+
+      - name: Install OpenCode CLI at the requested version (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        env:
+          OPENCODE_VERSION: ${{ inputs.opencode_version }}
+        run: |
+          version="${OPENCODE_VERSION#v}"
+          # Install the exact release selected by the dispatch input.
+          npm install --global "@opencode/cli@$version"
+          opencode --version
+
+      - name: Install OpenCode CLI at the requested version (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          OPENCODE_VERSION: ${{ inputs.opencode_version }}
+        run: |
+          $version = $env:OPENCODE_VERSION -replace '^v', ''
+          # Install the exact release selected by the dispatch input.
+          npm install --global "@opencode/cli@$version"
+          opencode --version
+
+      # The native runner performs the chained build: the host-free core now
+      # lives at the repo root, while compiled output stays in opencode/dist.
+      - name: Run full suite (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: bash scripts/run_tests.sh
+
+      - name: Run full suite (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/run_tests.ps1
+
+      - name: Upload failure report
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: compat-failure-${{ matrix.os }}
+          path: reports/
+          if-no-files-found: ignore
+
+      - name: Update the single compatibility failure tracker
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          LABELS: bug,github-actions,ci-compat
+          TITLE: "CI: OpenCode compatibility failure (auto-tracked)"
+          ISSUE_STATE: all
+          REOPEN: '1'
+          FAIL_OS: ${{ matrix.os }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          DETAILS: "OpenCode version under test: ${{ inputs.opencode_version }}"
+        run: python scripts/ci/update_issue.py

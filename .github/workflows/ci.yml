@@ -1,0 +1,269 @@
+# Cross-platform CI for every change. All code lands on `untested` first; only
+# a green matrix opens (or auto-merges) the promotion PR into `main`.
+# Only GitHub-owned actions are used, so Dependabot keeps them current.
+name: Plugin CI
+
+on:
+  pull_request:
+    branches: [untested, main]
+  push:
+    branches: [untested]
+
+# Superseded runs on the same ref are safe to cancel. Release runs are not
+# handled here (see publish.yml, which uses its own non-cancelling group).
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Nothing is granted by default; each job declares the exact permissions it needs.
+permissions: {}
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - ubuntu-24.04-arm
+          - windows-latest
+          - macos-latest
+          - windows-11-arm
+    permissions:
+      contents: read
+      issues: write # only for the idempotent failure tracker below
+    steps:
+      - name: Check out the tested commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+
+      # Native runners only: bash on Linux/macOS, PowerShell on Windows. They
+      # invoke the chained npm build, which emits the repo-root universal core
+      # into opencode/dist/universal before compiling the unchanged adapters.
+      - name: Run full suite (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: bash scripts/run_tests.sh
+
+      - name: Run full suite (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/run_tests.ps1
+
+      - name: Upload failure report
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ci-failure-${{ matrix.os }}
+          path: reports/
+          if-no-files-found: ignore
+
+      # A single tracker per category: later failures edit the same issue.
+      - name: Update the untested-branch failure tracker
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          LABELS: bug,github-actions,ci-untested
+          TITLE: "CI: untested branch failing (auto-tracked)"
+          FAIL_OS: ${{ matrix.os }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python scripts/ci/update_issue.py
+
+  zero_wsl_audit:
+    name: zero-wsl-audit
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      # The forbidden tokens are assembled from parts so this workflow does not
+      # match its own audit. .github/ is excluded because workflows legitimately
+      # document the rule they enforce.
+      - name: Fail on WSL-only tokens in repository code
+        shell: bash
+        run: |
+          set -euo pipefail
+          pattern='\/mnt\/|wsl(\.exe|path)|WSL_(DISTRO_NAME|ENV|[A-Z])'
+          if git grep -nIE "$pattern" -- . ':(exclude).github/**'; then
+            echo "::error::WSL-specific tokens found in repository code"
+            exit 1
+          fi
+          echo "No WSL-specific tokens found in repository code."
+
+  # Headless contract checks for the config-file-only era. The Desktop app has
+  # no GUI command/panel in this version; it loads the same server plugin and
+  # reads the same sidecar config files. Hosted runners have no Electron
+  # session, so this job asserts zero commands and config-driven behaviour
+  # instead of launching the application.
+  desktop_contract:
+    name: desktop-contract (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - ubuntu-24.04-arm
+          - windows-latest
+          - macos-latest
+          - windows-11-arm
+    permissions:
+      contents: read
+      issues: write # only for the idempotent failure tracker below
+    steps:
+      - name: Check out the tested commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+
+      - name: Verify pinned OpenCode CLI (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        env:
+          OPENCODE_VERSION: '2.3.2'
+        run: |
+          set -euo pipefail
+          # npx runs the exact pinned version from its cache; no ad-hoc global
+          # install mutates the runner image.
+          npx --yes --package "@opencode/cli@${OPENCODE_VERSION}" opencode --version
+
+      - name: Verify pinned OpenCode CLI (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          OPENCODE_VERSION: '2.3.2'
+        run: |
+          npx --yes --package "@opencode/cli@$env:OPENCODE_VERSION" opencode --version
+
+      # Native runners execute every unit/contract test, including the
+      # zero-command guard and the Desktop absence/contract module.
+      - name: Run full suite (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: bash scripts/run_tests.sh
+
+      - name: Run full suite (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/run_tests.ps1
+
+      - name: Assert zero command registrations
+        shell: bash
+        run: python scripts/ci/check_no_commands.py
+
+      # Prove that editing global.json / projects/<key>.json (the same files the
+      # Desktop app reads) changes get_policy and real subagent routing.
+      - name: Check config-file-driven policy E2E
+        shell: bash
+        run: |
+          python -m pip install --disable-pip-version-check -r tests/requirements.txt
+          python -m pytest tests/adapters/opencode_cli/e2e/test_config_file_control.py -n 1 -q
+
+      - name: Upload failure report
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: desktop-contract-failure-${{ matrix.os }}
+          path: reports/
+          if-no-files-found: ignore
+
+      - name: Update the untested-branch failure tracker
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          LABELS: bug,github-actions,ci-untested
+          TITLE: "CI: desktop contract failing (auto-tracked)"
+          FAIL_OS: ${{ matrix.os }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python scripts/ci/update_issue.py
+
+  promote:
+    name: promote-untested-to-main
+    if: github.event_name == 'push' && github.ref == 'refs/heads/untested'
+    needs: [test, zero_wsl_audit, desktop_contract]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      # Promotion re-checks the guard directly as well as inheriting the green
+      # desktop_contract job through `needs`, so a stale command contribution
+      # can never reach main unobserved.
+      - name: Check out the tested commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+
+      - name: Assert zero command registrations before promotion
+        shell: bash
+        run: python scripts/ci/check_no_commands.py
+
+      - name: Open or reuse the promotion pull request
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          existing="$(gh pr list --repo "$GH_REPO" --base main --head untested \
+            --state open --json number --jq '.[0].number // empty')"
+          if [ -n "$existing" ]; then
+            echo "Promotion PR #$existing is already open."
+          else
+            gh pr create --repo "$GH_REPO" --base main --head untested \
+              --title "Promote untested to main" \
+              --body "Automated promotion after a green five-runner CI matrix on \`untested\`."
+          fi
+
+  auto_merge:
+    name: auto-merge-green-promotion
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    needs: [test, zero_wsl_audit, desktop_contract]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Enable squash auto-merge on a green promotion PR
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          gh pr merge --auto --squash "$PR_URL" || \
+            echo "Auto-merge is unavailable; merge the promotion PR manually."

@@ -1,0 +1,300 @@
+# Register this EXACT filename as the GitHub Actions trusted publisher on
+# npmjs.com for MrQbiTwo/individual-subagent-model-plugin (environment: npm).
+# Publishing uses OIDC only: id-token: write, no long-lived npm token, and no
+# manual --provenance flag (provenance is generated automatically).
+# Both 'v1.0.0' and plain '1.0.0' tags are accepted; the SemVer gate below
+# checks the tag against package.json in either form.
+name: Publish plugin to npm
+
+on:
+  push:
+    tags: ['v*', '[0-9]*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to publish, e.g. v2.3.2'
+        required: true
+        type: string
+
+# Releases must never be cancelled or overlapped. No cancel-in-progress.
+concurrency:
+  group: publish-${{ github.workflow }}-${{ inputs.tag || github.ref }}
+
+permissions: {}
+
+jobs:
+  resolve-ref:
+    name: resolve-release-ref
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      ref: ${{ steps.resolve.outputs.ref }}
+    steps:
+      - id: resolve
+        shell: bash
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          PUSH_REF: ${{ github.ref_name }}
+        run: |
+          if [ -n "$INPUT_TAG" ]; then
+            ref="$INPUT_TAG"
+          else
+            ref="$PUSH_REF"
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: build (ubuntu-24.04)
+    needs: resolve-ref
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the release ref
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ needs.resolve-ref.outputs.ref }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false
+
+      - name: Ensure npm meets the trusted-publishing minimum (>= 11.5.1)
+        shell: bash
+        run: |
+          # npm >= 11.5.1 is a hard requirement for OIDC trusted publishing.
+          npm install --global npm@^11.5.1
+          echo "npm $(npm --version), node $(node --version)"
+
+      - name: Install dependencies and build
+        shell: bash
+        working-directory: ./opencode
+        run: |
+          npm ci
+          # The chained build emits the repo-root universal core into
+          # opencode/dist/universal; exports and published files are unchanged.
+          npm run build
+
+      - name: Upload the built package
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: package
+          path: opencode/dist/
+          if-no-files-found: error
+
+  test-cross-platform:
+    name: release-test (${{ matrix.os }})
+    needs: [resolve-ref, build]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04-arm
+          - windows-latest
+          - macos-latest
+          - windows-11-arm
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the release ref
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ needs.resolve-ref.outputs.ref }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          package-manager-cache: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+
+      - name: Download the built package
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: package
+          path: opencode/dist
+
+      - name: Run full suite (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: bash scripts/run_tests.sh
+
+      - name: Run full suite (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/run_tests.ps1
+
+  gate-and-publish:
+    name: gate-and-publish
+    needs: [resolve-ref, test-cross-platform]
+    runs-on: ubuntu-24.04
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write # REQUIRED for npm OIDC trusted publishing
+      issues: write
+    steps:
+      - name: Check out the release ref
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ needs.resolve-ref.outputs.ref }}
+          persist-credentials: false
+
+      - name: Set up Node.js for the npm registry
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false
+
+      - name: Ensure npm meets the trusted-publishing minimum (>= 11.5.1)
+        shell: bash
+        run: |
+          # npm >= 11.5.1 is a hard requirement for OIDC trusted publishing.
+          npm install --global npm@^11.5.1
+          echo "npm $(npm --version), node $(node --version)"
+
+      - name: Download the built package
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: package
+          path: opencode/dist
+
+      - name: Verify tag matches package SemVer
+        shell: bash
+        env:
+          REF: ${{ needs.resolve-ref.outputs.ref }}
+        run: |
+          set -euo pipefail
+          pkg_version="$(node -p "require('./opencode/package.json').version")"
+          test "$pkg_version" = "$REF" || test "v$pkg_version" = "$REF" || {
+            echo "Tag $REF does not match package version $pkg_version" >&2
+            exit 1
+          }
+          echo "Release $REF matches package version $pkg_version"
+
+      # SemVer forbids modifying a published version, so a retried run skips
+      # npm publish when this exact version is already on the registry.
+      - name: Check whether the version is already published
+        id: publish_check
+        shell: bash
+        env:
+          PACKAGE_NAME: opencode-individual-subagent-model-plugin
+        run: |
+          version="$(node -p "require('./opencode/package.json').version")"
+          if npm view "$PACKAGE_NAME@$version" version >/dev/null 2>&1; then
+            echo "Already published: $PACKAGE_NAME@$version"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish to npm via OIDC trusted publishing
+        if: steps.publish_check.outputs.publish == 'true'
+        shell: bash
+        working-directory: ./opencode
+        run: npm publish --access public
+
+  create-github-release:
+    name: create-github-release
+    # Only a tag push creates a release; manual re-dispatch still publishes to npm.
+    if: github.event_name == 'push'
+    needs: [resolve-ref, gate-and-publish]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write # create the release and read GitHub's generated notes
+    steps:
+      - name: Check out the release ref with full history
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ needs.resolve-ref.outputs.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+
+      - name: Render the release body from the template
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          REF: ${{ needs.resolve-ref.outputs.ref }}
+        run: |
+          set -euo pipefail
+          previous="$(git describe --tags --abbrev=0 "$REF^" 2>/dev/null || true)"
+          args=(-f tag_name="$REF")
+          if [ -n "$previous" ]; then
+            args+=(-f previous_tag_name="$previous")
+          fi
+          gh api "repos/$GH_REPO/generate-notes" "${args[@]}" --jq .body > generated-notes.md
+          python scripts/ci/release_notes.py \
+            --template .github/release-template.md \
+            --output release-body.md \
+            --tag "$REF" \
+            --previous "$previous" \
+            --generated-notes generated-notes.md \
+            --repo "$GH_REPO"
+
+      - name: Create or update the GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          REF: ${{ needs.resolve-ref.outputs.ref }}
+        run: |
+          set -euo pipefail
+          if gh release view "$REF" >/dev/null 2>&1; then
+            gh release edit "$REF" --notes-file release-body.md
+          else
+            gh release create "$REF" --verify-tag --title "$REF" --notes-file release-body.md
+          fi
+
+  on-failure:
+    name: update-release-tracker
+    if: failure()
+    needs: [resolve-ref, build, test-cross-platform, gate-and-publish]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+      actions: write # to persist LAST_RELEASE_TAG for the re-dispatch workflow
+    steps:
+      - name: Check out the release ref for the helper scripts
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ needs.resolve-ref.outputs.ref }}
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+
+      - name: Update or reopen the single release tracker
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          LABELS: bug,github-actions,ci-release
+          ISSUE_STATE: all
+          REOPEN: '1'
+          REF: ${{ needs.resolve-ref.outputs.ref }}
+          FAIL_OS: release-pipeline
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python scripts/ci/update_issue.py --title "Release blocked: $REF"
+          gh variable set LAST_RELEASE_TAG --body "$REF"

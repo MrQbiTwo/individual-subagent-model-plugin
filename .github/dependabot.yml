@@ -1,0 +1,24 @@
+# Keep npm and GitHub Actions dependencies current. Only GitHub-owned actions
+# are used in the workflows, and Dependabot bumps their major tags for us.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /opencode
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - github-actions

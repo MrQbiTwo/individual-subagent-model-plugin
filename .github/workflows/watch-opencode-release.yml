@@ -1,0 +1,75 @@
+# Upstream's /releases/latest currently points at the legacy v1 line, so the
+# release LIST is filtered for stable 'v2.' tags instead. When a newer v2 tag
+# appears, dispatch the cross-platform compatibility suite via workflow_dispatch
+# (the documented exception that lets GITHUB_TOKEN start another workflow).
+name: Watch OpenCode releases
+
+on:
+  schedule:
+    - cron: '23 3,9,15,21 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: watch-opencode-${{ github.workflow }}
+
+permissions: {}
+
+jobs:
+  check:
+    name: check-upstream-v2
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: write # required to dispatch a workflow and set an Actions variable
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+
+      - name: Resolve newest stable OpenCode v2 tag
+        id: latest
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="$(gh api repos/anomalyco/opencode/releases --paginate \
+            --jq '[.[] | select(.draft == false and .prerelease == false)
+                         | select(.tag_name | startswith("v2."))]
+                   | sort_by(.published_at) | last | .tag_name')"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Newest upstream stable v2 release: $tag"
+
+      - name: Dispatch compatibility tests when a newer release is found
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LAST: ${{ vars.LAST_OPENCODE_RELEASE }}
+          NEW: ${{ steps.latest.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ -z "$NEW" ]; then
+            echo "No stable v2 release found upstream." >&2
+            exit 1
+          fi
+          new_version="$(python scripts/ci/semver.py from-tag "$NEW")"
+          python scripts/ci/semver.py is-valid "$new_version" >/dev/null || {
+            echo "Upstream tag is not valid SemVer: $NEW" >&2
+            exit 1
+          }
+          last_version="$(python scripts/ci/semver.py from-tag "${LAST:-0.0.0}")"
+          if ! python scripts/ci/semver.py is-valid "$last_version" >/dev/null; then
+            last_version="0.0.0"
+          fi
+          if python scripts/ci/semver.py newer "$new_version" "$last_version"; then
+            echo "New OpenCode release: $NEW (previous: ${LAST:-none})"
+            gh workflow run opencode-compat.yml --ref main -f opencode_version="$NEW"
+            gh variable set LAST_OPENCODE_RELEASE --body "$NEW"
+          else
+            echo "No newer v2 release (last recorded: ${LAST:-none})."
+          fi

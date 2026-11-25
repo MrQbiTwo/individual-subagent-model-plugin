@@ -1,0 +1,45 @@
+# Node.js / npm
+node_modules/
+dist/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.ty_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Test and build artifacts
+reports/
+*.junit.xml
+
+# Logs and local overrides
+*.log
+.env
+.env.*
+*.local
+
+# Editors and operating systems
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Lock files are intentionally tracked: do not ignore them.
+!package-lock.json
+!uv.lock

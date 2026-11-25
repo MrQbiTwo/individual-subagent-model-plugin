@@ -1,0 +1,96 @@
+# Every 16 hours, re-run the full matrix against `untested` while it is still
+# failing. All failures update ONE tracker issue; a green run leaves a comment
+# so a maintainer can close it. This workflow must live on the default branch
+# (schedules only read there), so it checks out `untested` explicitly.
+name: Retry untested (16h)
+
+on:
+  schedule:
+    # Off-peak minutes avoid the top-of-hour scheduling delay.
+    - cron: '17 2,18 * * *'
+  workflow_dispatch:
+
+# Serialize retries; never cancel one (no cancel-in-progress on purpose).
+concurrency:
+  group: retry-untested-${{ github.workflow }}
+
+permissions: {}
+
+jobs:
+  retry:
+    name: retry (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - ubuntu-24.04-arm
+          - windows-latest
+          - macos-latest
+          - windows-11-arm
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Check out untested (not the default branch)
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: untested
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+
+      # Native runners own the chained build; compiled universal output remains
+      # under opencode/dist even though its source is now at the repo root.
+      - name: Run full suite (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: bash scripts/run_tests.sh
+
+      - name: Run full suite (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/run_tests.ps1
+
+      - name: Upload failure report
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: retry-failure-${{ matrix.os }}
+          path: reports/
+          if-no-files-found: ignore
+
+      # Search all states so a manually closed tracker is edited and reopened
+      # if the code is still broken.
+      - name: Update the single failure tracker
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          LABELS: bug,github-actions,ci-untested
+          TITLE: "CI: untested branch failing (auto-tracked)"
+          ISSUE_STATE: all
+          REOPEN: '1'
+          FAIL_OS: ${{ matrix.os }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python scripts/ci/update_issue.py
+
+      - name: Report a green retry
+        if: success()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          LABELS: bug,github-actions,ci-untested
+          SUCCESS_COMMENT: "All five runners are green again; this tracker can be closed."
+        run: python scripts/ci/update_issue.py --on-success
