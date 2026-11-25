@@ -1,6 +1,8 @@
-# Advanced CodeQL setup: a checked-in matrix guarantees the four languages we
+# Advanced CodeQL setup: a checked-in matrix guarantees the three languages we
 # care about (PowerShell is not supported by CodeQL; the platform suite covers
-# it). Runs weekly and on every push / PR to main.
+# it). Bash is deliberately excluded: CodeQL does not recognize `bash` as an
+# analysis language and fails at `Initialize CodeQL` with "Did not recognize
+# the following languages: bash". Runs weekly and on every push / PR to main.
 name: CodeQL Advanced
 
 on:
@@ -32,8 +34,6 @@ jobs:
           - language: javascript-typescript
             build-mode: none
           - language: python
-            build-mode: none
-          - language: bash
             build-mode: none
           - language: actions
             build-mode: none
