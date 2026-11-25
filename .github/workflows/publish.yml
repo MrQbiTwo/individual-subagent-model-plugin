@@ -1,7 +1,7 @@
-# Register this EXACT filename as the GitHub Actions trusted publisher on
-# npmjs.com for MrQbiTwo/individual-subagent-model-plugin (environment: npm).
-# Publishing uses OIDC only: id-token: write, no long-lived npm token, and no
-# manual --provenance flag (provenance is generated automatically).
+# Publishing to npm uses the repository secret NPM_TOKEN (environment: npm)
+# via npm token authentication: actions/setup-node writes an .npmrc pointing at
+# the registry, and the publish step supplies NODE_AUTH_TOKEN from that secret.
+# No token value is ever stored in the repository and no id-token is requested.
 # Both 'v1.0.0' and plain '1.0.0' tags are accepted; the SemVer gate below
 # checks the tag against package.json in either form.
 name: Publish plugin to npm
@@ -64,11 +64,12 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           package-manager-cache: false
 
-      - name: Ensure npm meets the trusted-publishing minimum (>= 11.5.1)
+      - name: Check the pinned npm version
         shell: bash
         run: |
-          # npm >= 11.5.1 is a hard requirement for OIDC trusted publishing.
-          npm install --global npm@^11.5.1
+          # No global install: verify the pinned npm resolves without mutating
+          # the runner, which also keeps this job clean for zizmor.
+          npx --yes --package "npm@11.13.0" npm --version
           echo "npm $(npm --version), node $(node --version)"
 
       - name: Install dependencies and build
@@ -142,7 +143,6 @@ jobs:
     environment: npm
     permissions:
       contents: read
-      id-token: write # REQUIRED for npm OIDC trusted publishing
       issues: write
     steps:
       - name: Check out the release ref
@@ -158,11 +158,12 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           package-manager-cache: false
 
-      - name: Ensure npm meets the trusted-publishing minimum (>= 11.5.1)
+      - name: Check the pinned npm version
         shell: bash
         run: |
-          # npm >= 11.5.1 is a hard requirement for OIDC trusted publishing.
-          npm install --global npm@^11.5.1
+          # No global install: verify the pinned npm resolves without mutating
+          # the runner, which also keeps this job clean for zizmor.
+          npx --yes --package "npm@11.13.0" npm --version
           echo "npm $(npm --version), node $(node --version)"
 
       - name: Download the built package
@@ -200,10 +201,14 @@ jobs:
             echo "publish=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Publish to npm via OIDC trusted publishing
+      - name: Publish to npm via npm token authentication
         if: steps.publish_check.outputs.publish == 'true'
         shell: bash
         working-directory: ./opencode
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        # The user explicitly chose npm token authentication for this job.
+        # zizmor: ignore[use-trusted-publishing]
         run: npm publish --access public
 
   create-github-release:

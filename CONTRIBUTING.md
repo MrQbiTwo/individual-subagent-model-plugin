@@ -4,11 +4,21 @@ Thanks for helping improve **Individual Subagent Model**. This document covers t
 
 ## Development environment
 
-- **Node.js and npm.** **Node.js 22.0.0 is the minimum required version**, matching the `engines` field in `opencode/package.json`. Use **Node.js 24** with its bundled npm for development; it is the tested toolchain. Building from source uses the TypeScript compiler only. Node.js 22.14.0+ is needed only for npm trusted publishing during releases.
+- **Node.js and npm.** **Node.js 22.0.0 is the minimum required version**, matching the `engines` field in `opencode/package.json`. Use **Node.js 24** with its bundled npm for development; it is the tested toolchain. Building from source uses the TypeScript compiler only. Releases authenticate to npm with the `NPM_TOKEN` repository secret; no extra Node.js floor applies.
 - **Python 3.12.3 or newer** for all test and CI helper scripts. Install dependencies either with [uv](https://docs.astral.sh/uv/) (`uv sync --project tests --all-groups`) or with a virtual environment plus `python -m pip install -r tests/requirements.txt`. The canonical dependency ranges live in `tests/pyproject.toml`; keep the two files in sync when you change a version.
 - **OpenCode 2.3.2 or newer** on your `PATH` if you want to run the end-to-end tests, which launch a real client.
 
 The plugin itself is written in TypeScript 7.0+; the version is pinned in `opencode/package.json`.
+
+### Rotating the npm token
+
+Releases authenticate to npm with the repository secret `NPM_TOKEN`; no token value is ever committed to this repository. To rotate it:
+
+1. On [npmjs.com](https://www.npmjs.com), open **Access Tokens** and create a **granular token** with **read/write publish access to all packages**. Copy the value and note its expiry date.
+2. In the GitHub repository, go to **Settings → Secrets and variables → Actions → `NPM_TOKEN` → Update secret** and paste the new value.
+
+> [!NOTE]
+> Only maintainers can update repository secrets. Granular tokens expire — the current one has a 90-day expiry — so rotate it before it lapses. Never print, commit, or otherwise store the token value in the repository.
 
 ## Plugin structure
 
