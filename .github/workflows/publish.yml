@@ -52,7 +52,7 @@ jobs:
       contents: read
     steps:
       - name: Check out the release ref
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.resolve-ref.outputs.ref }}
           persist-credentials: false
@@ -103,7 +103,7 @@ jobs:
       contents: read
     steps:
       - name: Check out the release ref
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.resolve-ref.outputs.ref }}
           persist-credentials: false
@@ -146,7 +146,7 @@ jobs:
       issues: write
     steps:
       - name: Check out the release ref
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.resolve-ref.outputs.ref }}
           persist-credentials: false
@@ -216,7 +216,7 @@ jobs:
       contents: write # create the release and read GitHub's generated notes
     steps:
       - name: Check out the release ref with full history
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.resolve-ref.outputs.ref }}
           fetch-depth: 0
@@ -274,7 +274,7 @@ jobs:
       actions: write # to persist LAST_RELEASE_TAG for the re-dispatch workflow
     steps:
       - name: Check out the release ref for the helper scripts
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.resolve-ref.outputs.ref }}
           persist-credentials: false
