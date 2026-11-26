@@ -1,26 +1,26 @@
 [![npm version](https://img.shields.io/npm/v/opencode-individual-subagent-model-plugin.svg)](https://www.npmjs.com/package/opencode-individual-subagent-model-plugin)
-[![npm downloads](https://img.shields.io/npm/dm/opencode-individual-subagent-model-plugin.svg)](https://www.npmjs.com/package/opencode-individual-subagent-model-plugin)
+![Codex 0.153.4+](https://img.shields.io/badge/Codex-0.153.4%2B-blue)
 [![GitHub stars](https://img.shields.io/github/stars/MrQbiTwo/individual-subagent-model-plugin.svg)](https://github.com/MrQbiTwo/individual-subagent-model-plugin/stargazers)
 ![TypeScript 7.0](https://img.shields.io/badge/TypeScript-7.0-blue)
 ![OpenCode 2.3.2+](https://img.shields.io/badge/OpenCode-2.3.2%2B-green)
 
 # Individual Subagent Model
 
-**Individual Subagent Model** is an OpenCode plugin that lets the primary model choose the AI model used by each subagent it launches. When you ask [OpenCode](https://opencode.ai/) to spawn several subagents, the primary model can assign a different model, provider, and effort level to each one — for example a fast model for a coder subagent and a cheaper free model for a tester subagent.
+**Individual Subagent Model** is a plugin for [OpenCode](https://opencode.ai/) and [Codex](https://developers.openai.com/codex/) that lets the primary model choose the AI model used by each subagent it launches. When the primary model spawns several subagents, it can assign a different model, provider, and effort level to each one — for example a fast model for a coder subagent and a cheaper free model for a tester subagent.
 
 > [!NOTE]
 > **Individual Subagent Model** is the display name used throughout this documentation. The technical identifier `individual-subagent-model-plugin` is reserved for the repository, the on-disk configuration folder, and the npm package name, so it still appears in installation instructions, links, and package identifiers.
 
 ## What it does
 
-- **Dynamic model catalog.** The plugin reads every model currently connected in OpenCode and exposes its ID, provider, display name, and effort levels (variants) to the primary model. Adding or removing a model or provider while OpenCode is running updates the catalog immediately.
+- **Dynamic model catalog.** The plugin reads every model currently connected in the host and exposes its ID, provider, display name, and effort levels (variants) to the primary model. Adding or removing a model or provider while the host is running updates the catalog immediately.
 - **Per-subagent selection.** The primary model can pick a model for a subagent in its prompt or through an agent default. A requested model must be available and permitted; otherwise the request falls back to an allowed built-in free model.
 - **Provider and effort support.** Model references use the `providerID/modelID#variant` form (for example `openrouter/anthropic/claude-sonnet-5.5#max`), so a prompt can also name the provider and the desired effort level.
-- **Allowlist enforcement.** Only permitted models can be assigned to subagents. Rules are stored per project and globally, with the project scope taking precedence, and are edited by hand as JSON files (see [Configuration](#configuration)).
+- **Allowlist enforcement.** Only permitted models can be assigned to subagents. Rules are stored per project and globally, with the project scope taking precedence, and are edited by hand as JSON files (see [Configuration](#configuration)). The same files are used on every host in this repository.
 
 ## Configuration
 
-**Individual Subagent Model** is controlled only by editing JSON config files — in this version there are no slash commands and no configuration panel. The server reads the rules on demand, so both the CLI and Desktop use the same files described below.
+**Individual Subagent Model** is controlled only by editing JSON config files — in this version there are no slash commands and no configuration panel. Rules are read on demand by every host: OpenCode CLI and Desktop use the shared server, while Codex CLI and app use the adapter in `codex/`.
 
 ### Where the files live
 
@@ -29,7 +29,7 @@ The config root is platform-specific and portable:
 - Windows: `%APPDATA%\individual-subagent-model-plugin\` (`APPDATA`, falling back to `%USERPROFILE%\AppData\Roaming`)
 - Linux / macOS: `${XDG_CONFIG_HOME:-~/.config}/individual-subagent-model-plugin/`
 
-Inside the root are `global.json` (rules for all projects) and `projects/<projectKey>.json` (rules for one workspace). `<projectKey>` is the OpenCode workspace ID with every character outside `A–Z a–z 0–9 _ -` replaced by `_`; when the host supplies no workspace ID the key is `default` (so the file is `projects/default.json`). The name is an opaque ID, not a project path. Both files are optional: a missing file means an empty rule for that scope ("allow nothing extra").
+Inside the root are `global.json` (rules for all projects) and `projects/<projectKey>.json` (rules for one workspace). `<projectKey>` is the host workspace ID with every character outside `A–Z a–z 0–9 _ -` replaced by `_`; when the host supplies no workspace ID the key is `default` (so the file is `projects/default.json`). The name is an opaque ID, not a project path. Both files are optional: a missing file means an empty rule for that scope ("allow nothing extra").
 
 ### File format — bare JSON
 
@@ -62,15 +62,26 @@ The example allows `openrouter/deepseek/deepseek-chat` (at `high` effort for the
 
 Rules are re-read from disk on **every call**, so an edit applies on the next subagent call — **no restart** is needed. Invalid JSON or a malformed rule is rejected; a missing file means an empty rule. Use the built-in `subagent_models` discovery tool to copy exact selectors and effort variants.
 
-### Desktop
+### Desktop and Codex
 
 The Desktop app has no command or panel in this version. It loads the same server plugin, and the shared background service applies the same config files at the paths above. Edit the JSON and the next subagent call uses it; reload the Desktop plugin or restart the service only if the host does not refresh the server automatically.
 
+Codex CLI and app use the same files — there is no second rule format. Its provider definitions live in `config.toml` under `[model_providers.<id>]`:
+
+```toml
+[model_providers.my_provider]
+base_url = "https://example.invalid/v1"
+wire_api = "responses"
+env_key = "MY_PROVIDER_API_KEY"
+```
+
+`wire_api = "responses"` is required: Codex uses the Responses API, not chat completions. `env_key` holds the **name of an environment variable**, not a credential — keep the value in your environment. The provider IDs `openai`, `ollama`, `lmstudio`, `amazon-bedrock`, `amazon-bedrock-runtime`, and `gcp` are reserved by Codex. Effort levels come from the model catalog as `supported_reasoning_levels`, matching the `#variant` suffix used in the shared config. A `codex exec` run accepts `-m` and `-c` overrides, which are still checked against the allowlist; subagent provider overrides are not supported because agent files inherit the parent provider. Offline contract tests need no account, so **no Codex subscription is required**.
+
 ## Installation
 
-Requires **OpenCode 2.3.2 or newer**.
+Requires **OpenCode 2.3.2 or newer** or **Codex CLI/app 0.153.4 or newer**. Both hosts are part of this single repository and share the allowlist rules above.
 
-Add the plugin to your OpenCode configuration (`opencode.json`):
+For OpenCode, add the plugin to `opencode.json`:
 
 ```json
 {
@@ -85,58 +96,24 @@ OpenCode resolves the package from npm on startup. You can also install it expli
 npm install -g opencode-individual-subagent-model-plugin
 ```
 
+For Codex, register the repository's `codex/` directory as a local marketplace with `codex plugin marketplace add <path-to-repo>/codex`, then run `codex plugin add individual-subagent-model@individual-subagent-model-local`. Verify with `codex plugin list -m individual-subagent-model-local --json`.
+
 To build and install from a source checkout, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Usage example
 
 A prompt can name the model, provider, and effort for each subagent:
 
-> Launch a Coder subagent using Deepseek V4.1 Flash via OpenRouter at Max effort, and a Tester subagent using Beam Free from the built-in OpenCode provider.
+> Launch a Coder subagent using Deepseek V4.1 Flash via OpenRouter at Max effort, and a Tester subagent using Beam Free from the built-in provider.
 
 The primary model matches these names against the live catalog, checks the allowlist, and launches each subagent with the resulting permitted model. If a name is unknown or not permitted, a built-in free model is used instead. You can also set a default model for an agent in a config file (see [Configuration](#configuration)) and omit the model from the prompt.
 
 All model permissions come from the JSON files described in [Configuration](#configuration).
 
-## Codex support
-
-**Individual Subagent Model** also has a `codex/` package that applies the same rules to the Codex CLI and Codex app. It targets **Codex CLI and app 0.153.4** and has also been verified against 0.172.0 (the bundled catalog field shape is unchanged); check `codex --version` before use so that the behavior below matches your installed version.
-
-From the repository root, install dependencies and build that package:
-
-```sh
-npm install --prefix codex
-npm run build --prefix codex
-```
-
-The allowlist lives in the very same `global.json` / `projects/<key>.json` files described in [Configuration](#configuration). There is no second rule format: edit those files and the Codex integration applies the next call. The offline contract tests cover the wiring without an account, so **no Codex subscription is required** to run them.
-
-### Provider configuration
-
-Codex reads providers from `config.toml` in `[model_providers.<id>]` entries. A custom entry declares a wire protocol and an environment variable name:
-
-```toml
-[model_providers.my_provider]
-base_url = "https://example.invalid/v1"
-wire_api = "responses"
-env_key = "MY_PROVIDER_API_KEY"
-```
-
-`wire_api = "responses"` is required: Codex talks to these providers through the Responses API, not the chat-completions API. `env_key` holds the **NAME of an environment variable**, never a secret — put the actual credential in your environment, not in `config.toml` or in the repository. The IDs `openai`, `ollama`, `lmstudio`, `amazon-bedrock`, `amazon-bedrock-runtime` and `gcp` are built-in reserved provider IDs in Codex; leave them to Codex instead of redefining them for custom endpoints.
-
-Effort levels come from the model catalogue as `supported_reasoning_levels` (or the equivalent per-model variant IDs). Use the same effort/variant IDs that appear after `#variant` in the shared config, so a reference such as `my_provider/model#high` resolves to the same level on both hosts.
-
-### How selection reaches Codex
-
-- A `codex exec` run accepts `-m` and `-c` overrides; whichever model they select is still checked against the allowlist.
-- A per-subagent provider override is **not supported** by Codex: agent files inherit the parent provider, so different subagents cannot select different providers there.
-- The hooks are **observational** — they report the model a run actually used and never rewrite prompts or config.
-- Rules are re-read for each call, so edits apply without a restart, just as with the OpenCode host.
-
 ## Future plans
 
-The same model-selection rules should work everywhere. **Codex** is implemented as described above; planned implementation and support also includes:
+The same model-selection rules are available on OpenCode and Codex. Reserved folders exist for additional runtimes:
 
-- **Codex**
 - **Claude Code**
 - **Antigravity**
 - **Cline**
@@ -144,15 +121,13 @@ The same model-selection rules should work everywhere. **Codex** is implemented 
 - GUI,
 - **Other agents** as the ecosystem grows
 
-The `codex/` folder holds a working package; the `cline/`, `antigravity/`, `claudecode/` and `cursor/` folders remain reserved placeholders that contain no code and imply no support in this version.
-
-The design goal is a universal core with thin per-agent adapters, so allowlists, model references, and effort levels stay consistent across runtimes.
+The `claudecode/`, `antigravity/`, `cline/`, and `cursor/` folders remain reserved placeholders that contain no code and imply no support in this version. The design goal is a universal core with thin adapters, so allowlists, model references, and effort levels stay consistent everywhere.
 
 And much more.
 
 ## Reporting issues
 
-Please use the [issue tracker](https://github.com/MrQbiTwo/individual-subagent-model-plugin/issues) and check [existing issues](https://github.com/MrQbiTwo/individual-subagent-model-plugin/issues?q=is%3Aissue) before opening a new one. For bugs, use the [Bug report](.github/ISSUE_TEMPLATE/ISSUE_TEMPLATE.md) template (`.github/ISSUE_TEMPLATE/ISSUE_TEMPLATE.md`); it collects your OpenCode version, operating system, Node.js version, exact reproduction steps, expected and actual behavior, relevant configuration, and logs. The template also requires a mandatory AI disclosure naming the AI model used, if any. For questions about setup, include your `opencode.json` plugin section and the output of `opencode --version`.
+Please use the [issue tracker](https://github.com/MrQbiTwo/individual-subagent-model-plugin/issues) and check [existing issues](https://github.com/MrQbiTwo/individual-subagent-model-plugin/issues?q=is%3Aissue) before opening a new one. For bugs, use the [Bug report](.github/ISSUE_TEMPLATE/ISSUE_TEMPLATE.md) template (`.github/ISSUE_TEMPLATE/ISSUE_TEMPLATE.md`); it collects your host version, operating system, Node.js version, exact reproduction steps, expected and actual behavior, relevant configuration, and logs. The template also requires a mandatory AI disclosure naming the AI model used, if any. Include the relevant plugin configuration and the output of `opencode --version` or `codex --version`.
 
 ## Requesting features
 
