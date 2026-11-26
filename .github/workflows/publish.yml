@@ -268,7 +268,7 @@ jobs:
           if [ -n "$previous" ]; then
             args+=(-f previous_tag_name="$previous")
           fi
-          gh api "repos/$GH_REPO/generate-notes" "${args[@]}" --jq .body > generated-notes.md
+          gh api "repos/$GH_REPO/releases/generate-notes" -X POST "${args[@]}" --jq .body > generated-notes.md
           python scripts/ci/release_notes.py \
             --template .github/release-template.md \
             --output release-body.md \
