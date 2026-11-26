@@ -26,6 +26,7 @@ assignees: ""
 - [ ] Configuration / allowlist policy
 - [ ] TUI or Desktop UI
 - [ ] Model resolution, providers, or effort levels
+- [ ] Codex CLI / Codex app behavior
 - [ ] Other agent runtimes
 - Would this be a breaking change? Explain.
 

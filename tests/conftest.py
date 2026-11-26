@@ -63,6 +63,8 @@ MARKER_DESCRIPTIONS = {
     "contract": "adapter contract tests (fake host, no live server)",
     "opencode_cli": "OpenCode CLI adapter contract and live-server checks",
     "opencode_desktop": "OpenCode Desktop absence and shared-config contract (static)",
+    "codex_cli": "Codex CLI adapter contract checks (offline probe, no account)",
+    "codex_app": "Codex app-server JSON-RPC wire contract (offline fixture)",
 }
 
 # Model discovery / resilience policy (research 15 §2).  These values are
@@ -969,3 +971,54 @@ def _tail(path: Path, limit: int = 2000) -> str:
         return path.read_text(encoding="utf-8", errors="replace")[-limit:]
     except OSError:
         return "<no server log>"
+
+
+# Codex contract fixtures live in the root conftest so no nested ``conftest.py``
+# shadows this module under pytest's default import mode. The adapter is driven
+# through its JSON-only probe: no live Codex call, account or model spend.
+CODEX_PROBE = REPO_ROOT / "codex" / "tools" / "codex_probe.mjs"
+CODEX_DIST_ENTRYPOINT = REPO_ROOT / "codex" / "dist" / "index.js"
+CODEX_FIXTURES = REPO_ROOT / "tests" / "adapters" / "codex" / "fixtures"
+
+
+@pytest.fixture
+def codex_probe() -> Callable[..., Any]:
+    """Run the compiled Codex probe once and parse its single JSON output."""
+    node = shutil.which("node")
+    assert node is not None, "node is not on PATH"
+    assert CODEX_PROBE.is_file(), f"Codex probe is missing: {CODEX_PROBE}"
+    assert CODEX_DIST_ENTRYPOINT.is_file(), f"Codex dist is not built: {CODEX_DIST_ENTRYPOINT}"
+
+    def _run(case: str, *args: str) -> Any:
+        result = subprocess.run(
+            [node, str(CODEX_PROBE), case, *args],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=False,
+            timeout=60,
+        )
+        assert result.returncode == 0, (
+            f"Codex probe {case!r} exited {result.returncode}:\n"
+            f"stdout: {result.stdout}\nstderr: {result.stderr}"
+        )
+        try:
+            return json.loads(result.stdout)
+        except json.JSONDecodeError as exc:
+            message = f"Codex probe {case!r} did not print one JSON value: {result.stdout!r}"
+            raise AssertionError(message) from exc
+
+    return _run
+
+
+@pytest.fixture
+def codex_fixture() -> Callable[[str], str]:
+    """Return the absolute path of an offline fixture next to the Codex tests."""
+
+    def _path(name: str) -> str:
+        path = CODEX_FIXTURES / name
+        assert path.is_file(), f"Codex fixture is missing: {path}"
+        return str(path.resolve())
+
+    return _path

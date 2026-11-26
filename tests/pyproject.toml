@@ -35,6 +35,8 @@ markers = [
   "contract: adapter contract tests (fake host, no live server)",
   "opencode_cli: OpenCode CLI adapter contract and live-server checks",
   "opencode_desktop: OpenCode Desktop GUI plugin contract (static + Node probe)",
+  "codex_cli: Codex CLI adapter contract checks (offline probe, no account)",
+  "codex_app: Codex app-server JSON-RPC wire contract (offline fixture)",
 ]
 
 [tool.ruff]

@@ -12,6 +12,7 @@ Closes #
 - [ ] `npm run typecheck --prefix opencode`
 - [ ] `bash scripts/run_tests.sh` or `pwsh ./scripts/run_tests.ps1`
 - [ ] Manual check in OpenCode CLI / Desktop (describe briefly)
+- [ ] Codex CLI/app 0.153.4 behavior checked (offline contract tests; no account required)
 
 ## Checklist
 

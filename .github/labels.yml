@@ -1,0 +1,44 @@
+# Declarative inventory of the repository labels. Keep this in sync with the
+# labels used by the issue templates and the CI/release failure trackers.
+- name: bug
+  color: "d73a4a"
+  description: "Something isn't working"
+- name: ci-codex
+  color: "5319e7"
+  description: "CI failure in the Codex adapter job"
+- name: ci-compat
+  color: "fbca04"
+  description: "Compatibility check failure"
+- name: ci-release
+  color: "b60205"
+  description: "Release pipeline failure"
+- name: ci-untested
+  color: "e99695"
+  description: "CI failure on the untested branch"
+- name: codex
+  color: "1d76db"
+  description: "Codex adapter work"
+- name: dependencies
+  color: "0366d6"
+  description: "Pull requests that update a dependency file"
+- name: enhancement
+  color: "a2eeef"
+  description: "New feature or request"
+- name: github-actions
+  color: "000000"
+  description: "GitHub Actions workflow changes"
+- name: opencode
+  color: "0e8a16"
+  description: "OpenCode adapter work"
+- name: opencode-verison-support
+  color: "c5def5"
+  description: "OpenCode version support tracking"
+- name: python:uv
+  color: "fef2c0"
+  description: "Python tooling managed by uv"
+- name: triage
+  color: "d4c5f9"
+  description: "Needs triage"
+- name: ui-bug
+  color: "e4e669"
+  description: "UI regression (legacy)"

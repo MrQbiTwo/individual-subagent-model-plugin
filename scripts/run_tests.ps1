@@ -33,9 +33,16 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & npm run build --prefix opencode
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+# The Codex adapter has its own lock file and two-stage build; its compiled
+# probes are exercised by the codex_cli / codex_app contract tests below.
+& npm ci --prefix codex
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+& npm run build --prefix codex
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
 New-Item -ItemType Directory -Force -Path reports | Out-Null
 if (-not $env:PYTEST_XDIST_N) { $env:PYTEST_XDIST_N = "4" }
-$testFilter = "unit or integration or e2e or universal or contract or opencode_cli or opencode_desktop"
+$testFilter = "unit or integration or e2e or universal or contract or opencode_cli or opencode_desktop or codex_cli or codex_app"
 if ($useUv) {
     & uv run --project tests python -m pytest tests -n $env:PYTEST_XDIST_N --dist=loadgroup -m $testFilter --junitxml=reports/junit.xml
 } else {
