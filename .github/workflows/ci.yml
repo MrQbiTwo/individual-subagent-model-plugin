@@ -44,6 +44,9 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '24'
+          # npm ci dominates the ARM step; restore its tarballs from cache.
+          cache: 'npm'
+          cache-dependency-path: opencode/package-lock.json
 
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
@@ -56,12 +59,33 @@ jobs:
       - name: Run full suite (Unix)
         if: runner.os != 'Windows'
         shell: bash
+        env:
+          # The runner script already ran npm ci/build; pytest must not repeat
+          # them (the serial_npm group did a second ~4m npm ci on ARM).
+          OPENCODE_TEST_SKIP_INSTALL: '1'
         run: bash scripts/run_tests.sh
 
       - name: Run full suite (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
+        env:
+          OPENCODE_TEST_SKIP_INSTALL: '1'
         run: ./scripts/run_tests.ps1
+
+      # The runner script already asserted npm ci/build exit codes. Re-check
+      # the emitted entrypoints here so skipping the duplicated serial_npm
+      # tests inside pytest never weakens coverage (including ARM import).
+      - name: Verify built server entrypoints
+        shell: bash
+        working-directory: ./opencode
+        run: |
+          set -euo pipefail
+          test -f dist/index.js
+          test -f dist/rpc.js
+          test ! -e dist/tui.js
+          test ! -e dist/gui-experimental.cjs
+          node -e "import('./dist/index.js')"
+          node -e "import('./dist/rpc.js')"
 
       - name: Upload failure report
         if: failure()
@@ -139,6 +163,9 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '24'
+          # npm ci dominates the ARM step; restore its tarballs from cache.
+          cache: 'npm'
+          cache-dependency-path: opencode/package-lock.json
 
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
@@ -169,12 +196,32 @@ jobs:
       - name: Run full suite (Unix)
         if: runner.os != 'Windows'
         shell: bash
+        env:
+          # The runner script already ran npm ci/build; pytest must not repeat
+          # them (the serial_npm group did a second ~4m npm ci on ARM).
+          OPENCODE_TEST_SKIP_INSTALL: '1'
         run: bash scripts/run_tests.sh
 
       - name: Run full suite (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
+        env:
+          OPENCODE_TEST_SKIP_INSTALL: '1'
         run: ./scripts/run_tests.ps1
+
+      # Same replacement assertions as the test job: the install smoke tests
+      # no longer re-run npm ci inside pytest, but their checks stay active.
+      - name: Verify built server entrypoints
+        shell: bash
+        working-directory: ./opencode
+        run: |
+          set -euo pipefail
+          test -f dist/index.js
+          test -f dist/rpc.js
+          test ! -e dist/tui.js
+          test ! -e dist/gui-experimental.cjs
+          node -e "import('./dist/index.js')"
+          node -e "import('./dist/rpc.js')"
 
       - name: Assert zero command registrations
         shell: bash
