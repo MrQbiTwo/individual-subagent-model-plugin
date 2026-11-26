@@ -301,5 +301,9 @@ jobs:
           FAIL_OS: release-pipeline
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          set -euo pipefail
           python scripts/ci/update_issue.py --title "Release blocked: $REF"
-          gh variable set LAST_RELEASE_TAG --body "$REF"
+          # Persisting LAST_RELEASE_TAG is bookkeeping, not release state: the
+          # GITHUB_TOKEN may lack rights to create repository variables (HTTP
+          # 403), so guard only this call and keep the issue update strict.
+          gh variable set LAST_RELEASE_TAG --body "$REF" || echo "::warning::Could not update LAST_RELEASE_TAG (continuing)"
