@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "individual-subagent-model",
+  "version": "1.0.0",
+  "description": "Applies the Individual Subagent Model allowlist and model-routing rules to the Codex CLI and Codex app.",
+  "license": "MIT",
+  "repository": "https://github.com/MrQbiTwo/individual-subagent-model-plugin",
+  "keywords": ["codex", "subagent", "model-routing", "allowlist", "offline"]
+}

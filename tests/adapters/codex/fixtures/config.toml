@@ -1,0 +1,19 @@
+# Offline fixture: golden Codex 0.153.4 config shape. No credentials are stored;
+# env_key names an environment variable rather than holding a secret value.
+model = "gpt-5.6-sol"
+model_provider = "myrouter"
+model_reasoning_effort = "high"
+model_catalog_json = "models.json"
+
+[model_providers.myrouter]
+name = "My Router"
+base_url = "https://router.example.invalid/v1"
+env_key = "MYROUTER_API_KEY"
+wire_api = "responses"
+request_max_retries = 2
+
+[agents]
+enabled = true
+default_subagent_model = "myrouter/child"
+default_subagent_reasoning_effort = "low"
+max_concurrent_threads_per_session = 3

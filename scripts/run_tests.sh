@@ -39,11 +39,16 @@ fi
 npm ci --prefix opencode
 npm run build --prefix opencode
 
+# The Codex adapter has its own lock file and two-stage build; its compiled
+# probes are exercised by the codex_cli / codex_app contract tests below.
+npm ci --prefix codex
+npm run build --prefix codex
+
 mkdir -p reports
 workers="${PYTEST_XDIST_WORKERS:-4}"
 "${python_launcher[@]}" -m pytest tests \
   -n "$workers" --dist=loadgroup \
-  -m "unit or integration or e2e or universal or contract or opencode_cli or opencode_desktop" \
+  -m "unit or integration or e2e or universal or contract or opencode_cli or opencode_desktop or codex_cli or codex_app" \
   --junitxml=reports/junit.xml
 
 node_version="$(node --version)"

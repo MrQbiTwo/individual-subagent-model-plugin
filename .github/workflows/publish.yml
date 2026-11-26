@@ -159,6 +159,15 @@ jobs:
           node -e "import('./dist/index.js')"
           node -e "import('./dist/rpc.js')"
 
+      # The downloaded package also carries the Codex adapter. Check it on
+      # every release runner without restoring a package-manager cache.
+      - name: Verify built Codex entrypoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f codex/dist/index.js
+          node -e "import('./codex/dist/index.js')"
+
   gate-and-publish:
     name: gate-and-publish
     needs: [resolve-ref, test-cross-platform]

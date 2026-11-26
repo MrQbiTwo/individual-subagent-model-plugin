@@ -46,7 +46,10 @@ jobs:
           node-version: '24'
           # npm ci dominates the ARM step; restore its tarballs from cache.
           cache: 'npm'
-          cache-dependency-path: opencode/package-lock.json
+          # cache-dependency-path: opencode/package-lock.json
+          cache-dependency-path: |
+            opencode/package-lock.json
+            codex/package-lock.json
 
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
@@ -87,6 +90,19 @@ jobs:
           node -e "import('./dist/index.js')"
           node -e "import('./dist/rpc.js')"
 
+      # The Codex adapter is built by the same chained build as the server.
+      # Re-check its emitted entrypoints so the skipped serial_npm smoke
+      # tests still cover every published entrypoint on every runner.
+      - name: Verify built Codex entrypoints
+        shell: bash
+        working-directory: ./codex
+        run: |
+          set -euo pipefail
+          test -f dist/index.js
+          test -f dist/catalog.js
+          test -f dist/universal/index.js
+          node -e "import('./dist/index.js')"
+
       - name: Upload failure report
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -102,7 +118,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-          LABELS: bug,github-actions,ci-untested
+          LABELS: bug,github-actions,ci-untested,codex
           TITLE: "CI: untested branch failing (auto-tracked)"
           FAIL_OS: ${{ matrix.os }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -165,7 +181,10 @@ jobs:
           node-version: '24'
           # npm ci dominates the ARM step; restore its tarballs from cache.
           cache: 'npm'
-          cache-dependency-path: opencode/package-lock.json
+          # cache-dependency-path: opencode/package-lock.json
+          cache-dependency-path: |
+            opencode/package-lock.json
+            codex/package-lock.json
 
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
@@ -223,6 +242,19 @@ jobs:
           node -e "import('./dist/index.js')"
           node -e "import('./dist/rpc.js')"
 
+      # The Codex adapter is built by the same chained build as the server.
+      # Re-check its emitted entrypoints so the skipped serial_npm smoke
+      # tests still cover every published entrypoint on every runner.
+      - name: Verify built Codex entrypoints
+        shell: bash
+        working-directory: ./codex
+        run: |
+          set -euo pipefail
+          test -f dist/index.js
+          test -f dist/catalog.js
+          test -f dist/universal/index.js
+          node -e "import('./dist/index.js')"
+
       - name: Assert zero command registrations
         shell: bash
         run: python scripts/ci/check_no_commands.py
@@ -249,7 +281,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-          LABELS: bug,github-actions,ci-untested
+          LABELS: bug,github-actions,ci-untested,codex
           TITLE: "CI: desktop contract failing (auto-tracked)"
           FAIL_OS: ${{ matrix.os }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

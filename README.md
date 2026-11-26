@@ -97,9 +97,44 @@ The primary model matches these names against the live catalog, checks the allow
 
 All model permissions come from the JSON files described in [Configuration](#configuration).
 
+## Codex support
+
+**Individual Subagent Model** also has a `codex/` package that applies the same rules to the Codex CLI and Codex app. It targets **Codex CLI and app 0.153.4** and has also been verified against 0.172.0 (the bundled catalog field shape is unchanged); check `codex --version` before use so that the behavior below matches your installed version.
+
+From the repository root, install dependencies and build that package:
+
+```sh
+npm install --prefix codex
+npm run build --prefix codex
+```
+
+The allowlist lives in the very same `global.json` / `projects/<key>.json` files described in [Configuration](#configuration). There is no second rule format: edit those files and the Codex integration applies the next call. The offline contract tests cover the wiring without an account, so **no Codex subscription is required** to run them.
+
+### Provider configuration
+
+Codex reads providers from `config.toml` in `[model_providers.<id>]` entries. A custom entry declares a wire protocol and an environment variable name:
+
+```toml
+[model_providers.my_provider]
+base_url = "https://example.invalid/v1"
+wire_api = "responses"
+env_key = "MY_PROVIDER_API_KEY"
+```
+
+`wire_api = "responses"` is required: Codex talks to these providers through the Responses API, not the chat-completions API. `env_key` holds the **NAME of an environment variable**, never a secret — put the actual credential in your environment, not in `config.toml` or in the repository. The IDs `openai`, `ollama`, `lmstudio`, `amazon-bedrock`, `amazon-bedrock-runtime` and `gcp` are built-in reserved provider IDs in Codex; leave them to Codex instead of redefining them for custom endpoints.
+
+Effort levels come from the model catalogue as `supported_reasoning_levels` (or the equivalent per-model variant IDs). Use the same effort/variant IDs that appear after `#variant` in the shared config, so a reference such as `my_provider/model#high` resolves to the same level on both hosts.
+
+### How selection reaches Codex
+
+- A `codex exec` run accepts `-m` and `-c` overrides; whichever model they select is still checked against the allowlist.
+- A per-subagent provider override is **not supported** by Codex: agent files inherit the parent provider, so different subagents cannot select different providers there.
+- The hooks are **observational** — they report the model a run actually used and never rewrite prompts or config.
+- Rules are re-read for each call, so edits apply without a restart, just as with the OpenCode host.
+
 ## Future plans
 
-The same model-selection rules should work everywhere, not just in OpenCode. Planned implementation and support includes:
+The same model-selection rules should work everywhere. **Codex** is implemented as described above; planned implementation and support also includes:
 
 - **Codex**
 - **Claude Code**
@@ -109,7 +144,7 @@ The same model-selection rules should work everywhere, not just in OpenCode. Pla
 - GUI,
 - **Other agents** as the ecosystem grows
 
-The `codex/`, `cline/`, `antigravity/`, `claudecode/` and `cursor/` folders are reserved placeholders; they contain no code and imply no support in this version.
+The `codex/` folder holds a working package; the `cline/`, `antigravity/`, `claudecode/` and `cursor/` folders remain reserved placeholders that contain no code and imply no support in this version.
 
 The design goal is a universal core with thin per-agent adapters, so allowlists, model references, and effort levels stay consistent across runtimes.
 

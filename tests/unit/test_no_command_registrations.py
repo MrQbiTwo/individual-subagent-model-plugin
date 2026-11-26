@@ -22,6 +22,13 @@ OPENCODE = REPO_ROOT / "opencode"
 TOOLS = OPENCODE / "tools"
 DIST = OPENCODE / "dist"
 UNIVERSAL = REPO_ROOT / "universal"
+CODEX = REPO_ROOT / "codex"
+CODEX_SRC = CODEX / "src"
+CODEX_DIST = CODEX / "dist"
+# Mirror scripts/ci/check_no_commands.py exactly: both guards scan the same
+# source roots and the same compiled dist roots.
+SOURCE_ROOTS = (UNIVERSAL, CODEX_SRC)
+DIST_ROOTS = (DIST, CODEX_DIST)
 
 BANNED_PROBES = (
     "tui_command_registration_probe.mjs",
@@ -88,16 +95,17 @@ def test_no_command_registrations_in_source_or_dist() -> None:
 
 
 def test_no_command_tokens_in_moved_universal_source() -> None:
-    assert UNIVERSAL.is_dir(), "universal source tree is missing"
     hits: list[str] = []
-    for path in sorted(UNIVERSAL.rglob("*.ts")) + sorted(UNIVERSAL.rglob("*.tsx")):
-        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-            hits.extend(
-                f"{path.relative_to(REPO_ROOT)}:{number}: {token}"
-                for token in BANNED_TOKENS
-                if token in line
-            )
-    assert hits == [], "command contract leaked into universal source:\n" + "\n".join(hits)
+    for root in SOURCE_ROOTS:
+        assert root.is_dir(), f"source tree is missing: {root}"
+        for path in sorted(root.rglob("*.ts")) + sorted(root.rglob("*.tsx")):
+            for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                hits.extend(
+                    f"{path.relative_to(REPO_ROOT)}:{number}: {token}"
+                    for token in BANNED_TOKENS
+                    if token in line
+                )
+    assert hits == [], "command contract leaked into source:\n" + "\n".join(hits)
 
 
 def test_command_probe_scripts_are_absent() -> None:
@@ -124,14 +132,15 @@ def test_ci_and_runners_do_not_reference_command_probes() -> None:
 
 
 def test_no_palette_or_slash_contract_in_dist() -> None:
-    assert DIST.is_dir(), "dist is not built (run npm run build --prefix opencode)"
     hits: list[str] = []
-    for path in sorted(DIST.rglob("*.js")):
-        text = path.read_text(encoding="utf-8")
-        for number, line in enumerate(text.splitlines(), start=1):
-            hits.extend(
-                f"{path.relative_to(REPO_ROOT).as_posix()}:{number}: {pattern.pattern}"
-                for pattern in DIST_PATTERNS
-                if pattern.search(line)
-            )
+    for root in DIST_ROOTS:
+        assert root.is_dir(), f"dist is not built: {root}"
+        for path in sorted(root.rglob("*.js")):
+            text = path.read_text(encoding="utf-8")
+            for number, line in enumerate(text.splitlines(), start=1):
+                hits.extend(
+                    f"{path.relative_to(REPO_ROOT).as_posix()}:{number}: {pattern.pattern}"
+                    for pattern in DIST_PATTERNS
+                    if pattern.search(line)
+                )
     assert hits == [], "command contract survived compilation:\n" + "\n".join(hits)

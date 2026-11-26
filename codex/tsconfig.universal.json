@@ -1,0 +1,9 @@
+{
+  "extends": "../universal/tsconfig.json",
+  "compilerOptions": {
+    "typeRoots": ["./node_modules/@types"],
+    "outDir": "./dist/universal",
+    "rootDir": "../universal"
+  },
+  "include": ["../universal/**/*.ts"]
+}
