@@ -113,6 +113,9 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '24'
+          # Releases publish runtime artifacts: zizmor's cache-poisoning audit
+          # forbids a package-manager cache here. The duplicate-install fix
+          # below still removes the slow second npm ci on ARM.
           package-manager-cache: false
 
       - name: Set up Python
@@ -129,12 +132,32 @@ jobs:
       - name: Run full suite (Unix)
         if: runner.os != 'Windows'
         shell: bash
+        env:
+          # npm ci/build already ran in the script (dist was also downloaded);
+          # do not repeat them inside pytest on the slow ARM runner.
+          OPENCODE_TEST_SKIP_INSTALL: '1'
         run: bash scripts/run_tests.sh
 
       - name: Run full suite (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
+        env:
+          OPENCODE_TEST_SKIP_INSTALL: '1'
         run: ./scripts/run_tests.ps1
+
+      # Keep the install smoke assertions active even though pytest now skips
+      # the duplicated serial_npm group; includes the ARM import check.
+      - name: Verify built server entrypoints
+        shell: bash
+        working-directory: ./opencode
+        run: |
+          set -euo pipefail
+          test -f dist/index.js
+          test -f dist/rpc.js
+          test ! -e dist/tui.js
+          test ! -e dist/gui-experimental.cjs
+          node -e "import('./dist/index.js')"
+          node -e "import('./dist/rpc.js')"
 
   gate-and-publish:
     name: gate-and-publish
