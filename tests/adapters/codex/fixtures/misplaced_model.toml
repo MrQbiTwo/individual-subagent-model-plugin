@@ -1,0 +1,10 @@
+# Offline fixture: a `model` key accidentally written inside a provider table.
+# The active model belongs at the top level, not under [model_providers.*].
+model = "gpt-5.6-sol"
+model_provider = "myrouter"
+
+[model_providers.myrouter]
+name = "My Router"
+base_url = "https://router.example.invalid/v1"
+model = "child"
+wire_api = "responses"

@@ -30,9 +30,10 @@ assignees: ""
 - Node.js version (`node --version`):
 - npm version (`npm --version`):
 - OpenCode version (`opencode --version`):
+- Codex CLI / Codex app version (`codex --version`), if relevant:
 - Plugin version (npm package or built commit):
 - Install method: global npm / local source build
-- Where it happened: OpenCode CLI / OpenCode Desktop
+- Where it happened: OpenCode CLI / OpenCode Desktop / Codex CLI / Codex app
 - Scope: project allowlist / global allowlist
 
 ## Configuration

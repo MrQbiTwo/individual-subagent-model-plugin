@@ -205,6 +205,13 @@ def test_readme_intro_and_configuration_use_display_name() -> None:
     assert f"**{DISPLAY}**" in section, "Configuration section must use the display name"
 
 
+def test_readme_has_codex_support_section() -> None:
+    section = _section(_read("README.md"), "Codex support")
+    assert "codex/" in section, "Codex support must document the codex/ package"
+    assert "0.153.4" in section, "Codex support must pin the supported CLI version"
+    assert "no Codex subscription is required" in section
+
+
 def test_contributing_structure_is_config_only() -> None:
     contributing = _read("CONTRIBUTING.md")
     for snippet in ("universal/", "adapters/opencode_cli/", "index.ts", "rpc.ts"):
@@ -349,7 +356,7 @@ def test_pr_templates_are_identical_and_valid() -> None:
     _assert_ai_disclosure(canonical)
 
 
-PLACEHOLDER_AGENTS = ("codex", "cline", "antigravity", "claudecode", "cursor")
+PLACEHOLDER_AGENTS = ("cline", "antigravity", "claudecode", "cursor")
 
 
 def test_placeholder_agent_folders_are_code_free() -> None:

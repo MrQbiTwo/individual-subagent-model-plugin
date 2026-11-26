@@ -1,0 +1,32 @@
+{
+  "requestedModel": "myrouter/child",
+  "requestedProvider": "otherrouter",
+  "parentModel": { "providerID": "myrouter", "id": "parent" },
+  "effort": "low",
+  "allowlist": {
+    "models": [],
+    "providers": ["myrouter", "otherrouter"],
+    "agentDefaults": {}
+  },
+  "catalog": {
+    "generatedAt": 0,
+    "providers": [
+      { "id": "myrouter", "name": "My Router", "models": [] },
+      { "id": "otherrouter", "name": "Other Router", "models": [] }
+    ],
+    "models": [
+      {
+        "id": "child",
+        "modelID": "child",
+        "providerID": "myrouter",
+        "providerName": "My Router",
+        "name": "Child",
+        "variants": [{ "id": "low", "settings": {} }],
+        "efforts": ["low"],
+        "enabled": true,
+        "isFree": false,
+        "selector": "myrouter/child"
+      }
+    ]
+  }
+}

@@ -4,7 +4,8 @@
 The plugin is a server + RPC + config-only product: no CLI slash commands, no
 Desktop GUI commands, no UI adapters and no UI package exports may remain.
 This guard scans the OpenCode source, the repo-root ``universal`` host-free
-source, the generated ``dist`` bundles, the Node probes and the package exports.
+source, the Codex adapter source, every generated ``dist`` bundle (including
+``codex/dist``), the Node probes and the package exports.
 It prints a JSON report on stdout and exits 1 when any command/UI contribution is
 still present.
 
@@ -28,6 +29,9 @@ SRC = OPENCODE / "src"
 DIST = OPENCODE / "dist"
 TOOLS = OPENCODE / "tools"
 UNIVERSAL = REPO_ROOT / "universal"
+CODEX = REPO_ROOT / "codex"
+CODEX_SRC = CODEX / "src"
+CODEX_DIST = CODEX / "dist"
 PACKAGE_JSON = OPENCODE / "package.json"
 
 # Tokens that are allowed to contain command-shaped words without being
@@ -144,7 +148,9 @@ def main() -> int:
     matches: list[str] = []
     _scan_text_files(SRC, SOURCE_SUFFIXES, matches)
     _scan_text_files(UNIVERSAL, SOURCE_SUFFIXES, matches)
+    _scan_text_files(CODEX_SRC, SOURCE_SUFFIXES, matches)
     _scan_text_files(DIST, DIST_SUFFIXES, matches)
+    _scan_text_files(CODEX_DIST, DIST_SUFFIXES, matches)
     _scan_probes(matches)
     _scan_exports(matches)
 
