@@ -10,6 +10,7 @@ shared across every runner instead of silently diverging on ARM.
 
 from __future__ import annotations
 
+import ast
 import re
 from pathlib import Path
 
@@ -37,6 +38,11 @@ JOB_RUNNERS = {
     ("publish.yml", "test-cross-platform"): RUNNERS[1:],
 }
 JOBS = tuple(JOB_RUNNERS)
+# CI targets Python 3.12, where ``str.replace(count=...)`` is a TypeError.
+OWNED_TEST_FILES = (
+    Path(__file__).resolve(),
+    REPO_ROOT / "tests" / "unit" / "test_ci_desktop_workflow.py",
+)
 
 
 def _workflow(name: str) -> str:
@@ -154,8 +160,31 @@ def test_worker_override_guard_is_strict() -> None:
     mutated = _workflow("ci.yml").replace(
         "          node-version: '24'\n",
         "          node-version: '24'\n          PYTEST_XDIST_N: '2'\n",
-        count=1,
+        1,
     )
     assert "PYTEST_XDIST_N" in mutated, "negative control did not inject the override"
     with pytest.raises(AssertionError, match="PYTEST_XDIST_N"):
         _assert_shared_worker_policy(mutated)
+
+
+def _replace_count_keyword_lines(path: Path) -> list[int]:
+    """Return lines calling ``replace(..., count=...)`` in an owned test file."""
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    return [
+        node.lineno
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "replace"
+        and any(keyword.arg == "count" for keyword in node.keywords)
+    ]
+
+
+def test_owned_tests_have_no_replace_count_keyword() -> None:
+    """Permanent portability guard: CI Python 3.12 rejects ``str.replace(count=...)``."""
+    offenders = {
+        path.relative_to(REPO_ROOT).as_posix(): _replace_count_keyword_lines(path)
+        for path in OWNED_TEST_FILES
+    }
+    offenders = {name: lines for name, lines in offenders.items() if lines}
+    assert not offenders, f"str.replace(count=...) is invalid on Python 3.12: {offenders}"
